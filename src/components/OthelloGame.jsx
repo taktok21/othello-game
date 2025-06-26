@@ -30,6 +30,10 @@ const OthelloGame = () => {
   const [aiDifficulty, setAiDifficulty] = useState('normal'); // 'easy', 'normal', 'hard'
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [aiPlayer, setAiPlayer] = useState(2); // AIが白(2)を担当
+  
+  // アニメーション関連
+  const [animatingCells, setAnimatingCells] = useState(new Set());
+  const [isAnimating, setIsAnimating] = useState(false);
 
   // 初期ボードの設定
   function initializeBoard() {
@@ -139,33 +143,107 @@ const OthelloGame = () => {
     return currentPlayerMoves.length === 0 && opponentMoves.length === 0;
   }, [getValidMoves]);
 
-  // ゲーム状態更新の共通関数
+  // ひっくり返される駒を取得
+  const getFlippedCells = (board, row, col, player) => {
+    const flippedCells = [];
+    
+    for (const [dRow, dCol] of directions) {
+      if (checkDirection(board, row, col, player, dRow, dCol)) {
+        let r = row + dRow;
+        let c = col + dCol;
+        
+        while (r >= 0 && r < 8 && c >= 0 && c < 8 && board[r][c] !== player) {
+          flippedCells.push([r, c]);
+          r += dRow;
+          c += dCol;
+        }
+      }
+    }
+    
+    return flippedCells;
+  };
+
+  // ゲーム状態更新の共通関数（アニメーション付き）
   const updateGameState = (row, col, player) => {
-    const newBoard = flipStones(board, row, col, player);
-    const newScores = calculateScores(newBoard);
+    if (isAnimating) return; // アニメーション中は無視
+    
+    const newBoard = [...board.map(row => [...row])];
+    const flippedCells = getFlippedCells(board, row, col, player);
+    
+    // 新しく置かれる駒
+    newBoard[row][col] = player;
     
     // ゲーム履歴に追加
     setGameHistory(prev => [...prev, { board: [...board], player: player, move: [row, col] }]);
     
-    setBoard(newBoard);
-    setScores(newScores);
-
-    // 次のプレイヤーに交代
-    const nextPlayer = player === 1 ? 2 : 1;
-    const nextPlayerMoves = getValidMoves(newBoard, nextPlayer);
+    // アニメーション開始
+    setIsAnimating(true);
+    const animatingSet = new Set();
+    animatingSet.add(`${row}-${col}`); // 新しく置かれた駒
+    flippedCells.forEach(([r, c]) => animatingSet.add(`${r}-${c}`));
+    setAnimatingCells(animatingSet);
     
-    if (nextPlayerMoves.length > 0) {
-      setCurrentPlayer(nextPlayer);
-    } else {
-      // 次のプレイヤーが打てない場合、現在のプレイヤーが続行
-      const currentPlayerMoves = getValidMoves(newBoard, player);
-      if (currentPlayerMoves.length === 0) {
-        // ゲーム終了
-        setGameStatus('finished');
-        const winner = newScores.black > newScores.white ? 'black' : 
-                      newScores.white > newScores.black ? 'white' : 'draw';
-        setWinner(winner);
-      }
+    // 即座に新しい駒を配置
+    setBoard(newBoard);
+    
+    // 段階的にひっくり返す
+    flippedCells.forEach(([r, c], index) => {
+      setTimeout(() => {
+        setBoard(prevBoard => {
+          const updatedBoard = [...prevBoard.map(row => [...row])];
+          updatedBoard[r][c] = player;
+          return updatedBoard;
+        });
+        
+        // 最後の駒のアニメーションが完了したら
+        if (index === flippedCells.length - 1) {
+          setTimeout(() => {
+            setAnimatingCells(new Set());
+            setIsAnimating(false);
+            
+            // 最終的なスコア計算とゲーム状態更新
+            const finalBoard = [...newBoard];
+            flippedCells.forEach(([r, c]) => {
+              finalBoard[r][c] = player;
+            });
+            
+            const newScores = calculateScores(finalBoard);
+            setScores(newScores);
+            
+            // 次のプレイヤーに交代
+            const nextPlayer = player === 1 ? 2 : 1;
+            const nextPlayerMoves = getValidMoves(finalBoard, nextPlayer);
+            
+            if (nextPlayerMoves.length > 0) {
+              setCurrentPlayer(nextPlayer);
+            } else {
+              // 次のプレイヤーが打てない場合、現在のプレイヤーが続行
+              const currentPlayerMoves = getValidMoves(finalBoard, player);
+              if (currentPlayerMoves.length === 0) {
+                // ゲーム終了
+                setGameStatus('finished');
+                const winner = newScores.black > newScores.white ? 'black' : 
+                              newScores.white > newScores.black ? 'white' : 'draw';
+                setWinner(winner);
+              }
+            }
+          }, 200); // アニメーション完了後の待機時間
+        }
+      }, index * 100); // 100msずつ遅延
+    });
+    
+    // 駒が一つもひっくり返らない場合（通常ありえないが安全のため）
+    if (flippedCells.length === 0) {
+      setTimeout(() => {
+        setAnimatingCells(new Set());
+        setIsAnimating(false);
+        
+        const newScores = calculateScores(newBoard);
+        setScores(newScores);
+        
+        const nextPlayer = player === 1 ? 2 : 1;
+        setCurrentPlayer(nextPlayer);
+      }, 300);
     }
   };
 
@@ -179,7 +257,7 @@ const OthelloGame = () => {
 
   // マスをクリックした時の処理（人間用）
   const handleCellClick = (row, col) => {
-    if (gameStatus !== 'playing' || !isValidMove(board, row, col, currentPlayer)) {
+    if (gameStatus !== 'playing' || !isValidMove(board, row, col, currentPlayer) || isAnimating) {
       return;
     }
 
@@ -200,6 +278,8 @@ const OthelloGame = () => {
     setWinner(null);
     setGameHistory([]);
     setIsAiThinking(false);
+    setAnimatingCells(new Set());
+    setIsAnimating(false);
   };
 
   // ゲーム開始
@@ -396,23 +476,40 @@ const OthelloGame = () => {
 
   // AI自動プレイ
   useEffect(() => {
-    if (gameStatus === 'playing' && gameMode === 'pvc' && currentPlayer === aiPlayer && !isAiThinking) {
+    if (gameStatus === 'playing' && gameMode === 'pvc' && currentPlayer === aiPlayer && !isAiThinking && !isAnimating) {
       makeAiMove();
     }
-  }, [gameStatus, gameMode, currentPlayer, aiPlayer, isAiThinking]);
+  }, [gameStatus, gameMode, currentPlayer, aiPlayer, isAiThinking, isAnimating]);
 
   // セルの内容を取得
   const getCellContent = (row, col) => {
     const cellValue = board[row][col];
     const isValidMoveCell = showHints && validMoves.some(([r, c]) => r === row && c === col);
+    const isAnimatingCell = animatingCells.has(`${row}-${col}`);
     
     return (
       <div 
         className={`cell ${isValidMoveCell ? 'valid-move' : ''}`}
         onClick={() => handleCellClick(row, col)}
       >
-        {cellValue === 1 && <div className="stone black" />}
-        {cellValue === 2 && <div className="stone white" />}
+        {cellValue === 1 && (
+          <div className={`stone-container ${isAnimatingCell ? 'flipping' : ''}`}>
+            <div className="stone stone-3d black">
+              <div className="stone-front black"></div>
+              <div className="stone-back white"></div>
+              <div className="stone-edge"></div>
+            </div>
+          </div>
+        )}
+        {cellValue === 2 && (
+          <div className={`stone-container ${isAnimatingCell ? 'flipping' : ''}`}>
+            <div className="stone stone-3d white">
+              <div className="stone-front white"></div>
+              <div className="stone-back black"></div>
+              <div className="stone-edge"></div>
+            </div>
+          </div>
+        )}
         {isValidMoveCell && <div className="hint-dot" />}
       </div>
     );
@@ -1094,6 +1191,8 @@ const OthelloGame = () => {
           cursor: pointer;
           position: relative;
           transition: all 0.2s ease;
+          perspective: 1000px;
+          transform-style: preserve-3d;
         }
 
         .cell:hover {
@@ -1108,23 +1207,110 @@ const OthelloGame = () => {
           background: #bbf7d0;
         }
 
-        .stone {
+        .stone-container {
           width: 50px;
           height: 50px;
+          position: relative;
+          transform-style: preserve-3d;
+          perspective: 1000px;
+        }
+
+        .stone-container.flipping {
+          animation: flipStone3D 0.8s ease-in-out;
+        }
+
+        .stone {
+          width: 100%;
+          height: 100%;
+          position: relative;
+          transform-style: preserve-3d;
+          transition: all 0.3s ease;
+        }
+
+        .stone-3d {
+          border-radius: 50%;
+        }
+
+        .stone-front,
+        .stone-back {
+          position: absolute;
+          width: 100%;
+          height: 100%;
           border-radius: 50%;
           border: 2px solid #374151;
-          transition: all 0.3s ease;
-          position: relative;
+          backface-visibility: hidden;
         }
 
-        .stone.black {
+        .stone-front {
+          transform: translateZ(4px);
+        }
+
+        .stone-back {
+          transform: rotateY(180deg) translateZ(4px);
+        }
+
+        .stone-edge {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          background: linear-gradient(45deg, #6b7280, #4b5563, #374151);
+          transform: translateZ(0px);
+          border: 2px solid #374151;
+          box-shadow: 
+            inset 0 0 10px rgba(0, 0, 0, 0.3),
+            0 0 5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 3D回転時のより詳細な制御 */
+        .stone-container.flipping .stone {
+          animation: stoneRotation 0.8s ease-in-out;
+        }
+
+        @keyframes stoneRotation {
+          0% { 
+            transform: rotateY(0deg);
+          }
+          50% {
+            transform: rotateY(90deg) rotateX(15deg);
+          }
+          100% { 
+            transform: rotateY(180deg);
+          }
+        }
+
+        .stone-front.black,
+        .stone-back.black {
           background: radial-gradient(circle at 30% 30%, #4b5563, #1f2937);
-          box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.3);
+          box-shadow: 
+            inset 0 4px 8px rgba(0, 0, 0, 0.4),
+            0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
-        .stone.white {
+        .stone-front.white,
+        .stone-back.white {
           background: radial-gradient(circle at 30% 30%, #ffffff, #e5e7eb);
-          box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: 
+            inset 0 4px 8px rgba(0, 0, 0, 0.1),
+            0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        @keyframes flipStone3D {
+          0% { 
+            transform: rotateY(0deg) scale(1);
+          }
+          25% {
+            transform: rotateY(45deg) scale(1.05) rotateX(15deg);
+          }
+          50% {
+            transform: rotateY(90deg) scale(1.1) rotateX(30deg);
+          }
+          75% {
+            transform: rotateY(135deg) scale(1.05) rotateX(15deg);
+          }
+          100% { 
+            transform: rotateY(180deg) scale(1);
+          }
         }
 
         .hint-dot {
