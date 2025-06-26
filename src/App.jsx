@@ -9,6 +9,8 @@ import Contact from './components/Contact';
 import ScrollProgress from './components/ScrollProgress';
 import LoadingSpinner from './components/LoadingSpinner';
 import BlogTools from './components/BlogTools';
+import WritingTool from './components/WritingTool';
+import OthelloGame from './components/OthelloGame';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
@@ -17,6 +19,10 @@ function App() {
     switch (currentPage) {
       case 'blog-tools':
         return <BlogTools />;
+      case 'writing-tool':
+        return <WritingTool />;
+      case 'othello':
+        return <OthelloGame />;
       case 'home':
       default:
         return (

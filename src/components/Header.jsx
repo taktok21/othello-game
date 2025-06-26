@@ -21,6 +21,8 @@ const Header = ({ currentPage = 'home', onPageChange }) => {
     { page: 'home', href: '#portfolio', label: 'ポートフォリオ' },
     { page: 'home', href: '#blog', label: 'ブログ' },
     { page: 'blog-tools', href: '#blog-tools', label: 'ブログツール' },
+    { page: 'writing-tool', href: '#writing-tool', label: 'ライティングツール' },
+    { page: 'othello', href: '#othello', label: 'オセロゲーム' },
     { page: 'home', href: '#contact', label: 'お問い合わせ' }
   ];
 
@@ -29,6 +31,10 @@ const Header = ({ currentPage = 'home', onPageChange }) => {
     
     if (link.page === 'blog-tools') {
       onPageChange?.('blog-tools');
+    } else if (link.page === 'writing-tool') {
+      onPageChange?.('writing-tool');
+    } else if (link.page === 'othello') {
+      onPageChange?.('othello');
     } else if (link.page === 'home') {
       if (currentPage !== 'home') {
         onPageChange?.('home');
