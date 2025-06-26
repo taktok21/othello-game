@@ -139,7 +139,45 @@ const OthelloGame = () => {
     return currentPlayerMoves.length === 0 && opponentMoves.length === 0;
   }, [getValidMoves]);
 
-  // マスをクリックした時の処理
+  // ゲーム状態更新の共通関数
+  const updateGameState = (row, col, player) => {
+    const newBoard = flipStones(board, row, col, player);
+    const newScores = calculateScores(newBoard);
+    
+    // ゲーム履歴に追加
+    setGameHistory(prev => [...prev, { board: [...board], player: player, move: [row, col] }]);
+    
+    setBoard(newBoard);
+    setScores(newScores);
+
+    // 次のプレイヤーに交代
+    const nextPlayer = player === 1 ? 2 : 1;
+    const nextPlayerMoves = getValidMoves(newBoard, nextPlayer);
+    
+    if (nextPlayerMoves.length > 0) {
+      setCurrentPlayer(nextPlayer);
+    } else {
+      // 次のプレイヤーが打てない場合、現在のプレイヤーが続行
+      const currentPlayerMoves = getValidMoves(newBoard, player);
+      if (currentPlayerMoves.length === 0) {
+        // ゲーム終了
+        setGameStatus('finished');
+        const winner = newScores.black > newScores.white ? 'black' : 
+                      newScores.white > newScores.black ? 'white' : 'draw';
+        setWinner(winner);
+      }
+    }
+  };
+
+  // AI専用の手実行関数
+  const executeAiMove = (row, col) => {
+    if (gameStatus !== 'playing' || !isValidMove(board, row, col, currentPlayer)) {
+      return;
+    }
+    updateGameState(row, col, currentPlayer);
+  };
+
+  // マスをクリックした時の処理（人間用）
   const handleCellClick = (row, col) => {
     if (gameStatus !== 'playing' || !isValidMove(board, row, col, currentPlayer)) {
       return;
@@ -150,32 +188,7 @@ const OthelloGame = () => {
       return;
     }
 
-    const newBoard = flipStones(board, row, col, currentPlayer);
-    const newScores = calculateScores(newBoard);
-    
-    // ゲーム履歴に追加
-    setGameHistory(prev => [...prev, { board: [...board], player: currentPlayer, move: [row, col] }]);
-    
-    setBoard(newBoard);
-    setScores(newScores);
-
-    // 次のプレイヤーに交代
-    const nextPlayer = currentPlayer === 1 ? 2 : 1;
-    const nextPlayerMoves = getValidMoves(newBoard, nextPlayer);
-    
-    if (nextPlayerMoves.length > 0) {
-      setCurrentPlayer(nextPlayer);
-    } else {
-      // 次のプレイヤーが打てない場合、現在のプレイヤーが続行
-      const currentPlayerMoves = getValidMoves(newBoard, currentPlayer);
-      if (currentPlayerMoves.length === 0) {
-        // ゲーム終了
-        setGameStatus('finished');
-        const winner = newScores.black > newScores.white ? 'black' : 
-                      newScores.white > newScores.black ? 'white' : 'draw';
-        setWinner(winner);
-      }
-    }
+    updateGameState(row, col, currentPlayer);
   };
 
   // ゲームリセット
@@ -347,14 +360,14 @@ const OthelloGame = () => {
     setIsAiThinking(true);
     
     // AIの思考時間をシミュレート
-    const thinkingTime = aiDifficulty === 'easy' ? 500 : 
-                        aiDifficulty === 'normal' ? 1000 : 1500;
+    const thinkingTime = aiDifficulty === 'easy' ? 1000 : 
+                        aiDifficulty === 'normal' ? 2000 : 3000;
     
     setTimeout(() => {
       const aiMove = getAiMove(board, aiDifficulty);
       if (aiMove) {
         const [row, col] = aiMove;
-        handleCellClick(row, col);
+        executeAiMove(row, col);
       }
       setIsAiThinking(false);
     }, thinkingTime);
