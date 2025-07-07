@@ -11,6 +11,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import BlogTools from './components/BlogTools';
 import WritingTool from './components/WritingTool';
 import OthelloGame from './components/OthelloGame';
+import LogoCreator from './components/LogoCreator';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
@@ -23,6 +24,8 @@ function App() {
         return <WritingTool />;
       case 'othello':
         return <OthelloGame />;
+      case 'logo-creator':
+        return <LogoCreator />;
       case 'home':
       default:
         return (
